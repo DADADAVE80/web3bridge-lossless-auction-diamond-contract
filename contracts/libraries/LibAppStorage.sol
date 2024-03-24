@@ -3,14 +3,14 @@ pragma solidity 0.8.23;
 
 import {LibDiamond} from "./LibDiamond.sol";
 
-struct ListingListItem {
-    uint256 parentListingId;
-    uint256 listingId;
-    uint256 childListingId;
+struct AuctionListItem {
+    uint256 parentAuctionId;
+    uint256 auctionId;
+    uint256 childAuctionId;
 }
 
-struct ERC721Listing {
-    uint256 listingId;
+struct ERC721Auction {
+    uint256 auctionId;
     address seller;
     address erc721TokenAddress;
     uint256 erc721TokenId;
@@ -20,8 +20,8 @@ struct ERC721Listing {
     bool cancelled;
 }
 
-struct ERC1155Listing {
-    uint256 listingId;
+struct ERC1155Auction {
+    uint256 auctionId;
     address seller;
     address erc1155TokenAddress;
     uint256 erc1155TypeId;
@@ -29,20 +29,20 @@ struct ERC1155Listing {
     uint256 priceInWei;
     uint256 timeCreated;
     uint256 timeLastPurchased;
-    uint256 sourceListingId;
+    uint256 sourceAuctionId;
     bool sold;
     bool cancelled;
 }
 
 struct AppStorage {
     // ERC721 Auction
-    uint256 nextERC721ListingId;
-    mapping(address => mapping(uint256 => mapping(address => uint256))) erc721TokenToListingId;
-    mapping(uint256 => ERC721Listing) erc721Listings;
+    uint256 nextERC721AuctionId;
+    mapping(address => mapping(uint256 => mapping(address => uint256))) erc721TokenToAuctionId;
+    mapping(uint256 => ERC721Auction) erc721Auctions;
     // ERC1155 Auction
-    uint256 nextERC1155ListingId;
-    mapping(address => mapping(uint256 => mapping(address => uint256))) erc1155TokenToListingId;
-    mapping(uint256 => ERC1155Listing) erc1155Listings;
+    uint256 nextERC1155AuctionId;
+    mapping(address => mapping(uint256 => mapping(address => uint256))) erc1155TokenToAuctionId;
+    mapping(uint256 => ERC1155Auction) erc1155Auctions;
 
     // ERC20 Facet
     string name;
@@ -51,7 +51,7 @@ struct AppStorage {
     uint256 totalSupply;
     mapping(address => uint256) balances;
     mapping(address => mapping(address => uint256)) allowances;
-    
+
 }
 
 library LibAppStorage {

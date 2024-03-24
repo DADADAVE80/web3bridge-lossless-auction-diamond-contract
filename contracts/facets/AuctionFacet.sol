@@ -4,14 +4,14 @@ pragma solidity 0.8.23;
 import {IERC721} from "../interfaces/IERC721.sol";
 import {IERC1155} from "../interfaces/IERC1155.sol";
 import {LibMeta} from "../libraries/LibMeta.sol";
-import {Modifiers, ERC721Listing, ERC1155Listing} from "../libraries/LibAppStorage.sol";
+import {Modifiers, ERC721Auction, ERC1155Auction} from "../libraries/LibAppStorage.sol";
 import {LibERC1155Marketplace} from "../libraries/LibERC1155Marketplace.sol";
 
 contract AuctionFacet is Modifiers {
     // Events
     // ERC721
-    event ERC721ListingAdd(
-        uint256 indexed listingId,
+    event ERC721AuctionAdd(
+        uint256 indexed auctionId,
         address indexed seller,
         address erc721TokenAddress,
         uint256 erc721TokenId,
@@ -20,11 +20,18 @@ contract AuctionFacet is Modifiers {
     );
 
     // ERC1155
-    event ERC1155ListingAdd(
-        uint256 indexed listingId,
+    event ERC1155AuctionAdd(
+        uint256 indexed auctionId,
         address indexed seller,
         address erc1155TokenAddress,
         uint256 erc1155TypeId,
+        uint256 quantity,
+        uint256 priceInWei,
+        uint256 time
+    );
+
+    event UpdateERC1155Auction(
+        uint256 indexed auctionId,
         uint256 quantity,
         uint256 priceInWei,
         uint256 time
@@ -58,15 +65,15 @@ contract AuctionFacet is Modifiers {
             "ERC721Auction: duration should be higher than ten minutes"
         );
 
-        s.nextERC721ListingId++;
-        uint256 listingId = s.nextERC721ListingId;
+        s.nextERC721AuctionId++;
+        uint256 auctionId = s.nextERC721AuctionId;
 
-        uint256 oldListingId = s.erc721TokenToListingId[_erc721TokenAddress][
+        uint256 oldAuctionId = s.erc721TokenToAuctionId[_erc721TokenAddress][
             _erc721TokenId
         ][msgSender];
-        if (oldListingId != 0) {
-            s.erc721Listings[oldListingId] = ERC721Listing({
-                listingId: 0,
+        if (oldAuctionId != 0) {
+            s.erc721Auctions[oldAuctionId] = ERC721Auction({
+                auctionId: 0,
                 seller: address(0),
                 erc721TokenAddress: address(0),
                 erc721TokenId: 0,
@@ -77,8 +84,8 @@ contract AuctionFacet is Modifiers {
             });
         }
 
-        s.erc721Listings[listingId] = ERC721Listing({
-            listingId: listingId,
+        s.erc721Auctions[auctionId] = ERC721Auction({
+            auctionId: auctionId,
             seller: msgSender,
             erc721TokenAddress: _erc721TokenAddress,
             erc721TokenId: _erc721TokenId,
@@ -88,8 +95,8 @@ contract AuctionFacet is Modifiers {
             cancelled: false
         });
 
-        emit ERC721ListingAdd(
-            listingId,
+        emit ERC721AuctionAdd(
+            auctionId,
             msgSender,
             _erc721TokenAddress,
             _erc721TokenId,
@@ -98,41 +105,42 @@ contract AuctionFacet is Modifiers {
         );
     }
 
-    function cancelERC721Auction(uint256 _listingId) internal {
-        ERC721Listing storage listing = s.erc721Listings[_listingId];
-        require(listing.listingId != 0, "ERC721Auction: Invalid listingId");
+    function cancelERC721Auction(uint256 _auctionId) internal {
+        ERC721Auction storage auction = s.erc721Auctions[_auctionId];
+        require(auction.auctionId != 0, "ERC721Auction: Invalid auctionId");
         require(
-            listing.seller == LibMeta.msgSender(),
+            auction.seller == LibMeta.msgSender(),
             "ERC721Auction: Not seller"
         );
-        require(listing.timePurchased == 0, "ERC721Auction: Already purchased");
-        require(listing.cancelled == false, "ERC721Auction: Already cancelled");
+        require(auction.timePurchased == 0, "ERC721Auction: Already purchased");
+        require(auction.cancelled == false, "ERC721Auction: Already cancelled");
 
-        listing.cancelled = true;
+        auction.cancelled = true;
     }
 
-    function bidERC721Auction(uint256 _listingId, uint256 _bidAmount) internal {
-        
+    function bidERC721Auction(
+        uint256 _auctionId,
+        uint256 _bidAmount
+    ) internal {}
+
+    function getERC721Auction(
+        uint256 _auctionId
+    ) internal view returns (ERC721Auction memory auction) {
+        auction = s.erc721Auctions[_auctionId];
+        require(auction.auctionId != 0, "ERC721Auction: Invalid auctionId");
     }
 
-    function getERC721Listing(
-        uint256 _listingId
-    ) internal view returns (ERC721Listing memory listing) {
-        listing = s.erc721Listings[_listingId];
-        require(listing.listingId != 0, "ERC721Auction: Invalid listingId");
-    }
-
-    function getERC721Listings()
+    function getERC721Auctions()
         internal
         view
-        returns (ERC721Listing[] memory listings)
+        returns (ERC721Auction[] memory auctions)
     {
-        uint256 listingCount = s.nextERC721ListingId;
-        listings = new ERC721Listing[](listingCount);
-        for (uint256 i; i < listingCount; i++) {
-            ERC721Listing storage listing = s.erc721Listings[i + 1];
-            if (listing.listingId != 0) {
-                listings[i] = listing;
+        uint256 auctionCount = s.nextERC721AuctionId;
+        auctions = new ERC721Auction[](auctionCount);
+        for (uint256 i; i < auctionCount; i++) {
+            ERC721Auction storage auction = s.erc721Auctions[i + 1];
+            if (auction.auctionId != 0) {
+                auctions[i] = auction;
             }
         }
     }
@@ -161,16 +169,16 @@ contract AuctionFacet is Modifiers {
             "ERC1155Auction: cost should be 1 Token or larger"
         );
 
-        s.nextERC1155ListingId++;
-        uint256 listingId = s.nextERC1155ListingId;
-        if (listingId == 0) {
-            s.nextERC1155ListingId++;
-            listingId = s.nextERC1155ListingId;
-            s.erc1155TokenToListingId[_erc1155TokenAddress][_erc1155TypeId][
+        s.nextERC1155AuctionId++;
+        uint256 auctionId = s.nextERC1155AuctionId;
+        if (auctionId == 0) {
+            s.nextERC1155AuctionId++;
+            auctionId = s.nextERC1155AuctionId;
+            s.erc1155TokenToAuctionId[_erc1155TokenAddress][_erc1155TypeId][
                     seller
-                ] = listingId;
-            s.erc1155Listings[listingId] = ERC1155Listing({
-                listingId: listingId,
+                ] = auctionId;
+            s.erc1155Auctions[auctionId] = ERC1155Auction({
+                auctionId: auctionId,
                 seller: seller,
                 erc1155TokenAddress: _erc1155TokenAddress,
                 erc1155TypeId: _erc1155TypeId,
@@ -178,18 +186,18 @@ contract AuctionFacet is Modifiers {
                 priceInWei: _priceInWei,
                 timeCreated: block.timestamp,
                 timeLastPurchased: 0,
-                sourceListingId: 0,
+                sourceAuctionId: 0,
                 sold: false,
                 cancelled: false
             });
-            LibERC1155Marketplace.addERC1155ListingItem(
+            LibERC1155Marketplace.addERC1155AuctionItem(
                 seller,
                 "listed",
-                listingId
+                auctionId
             );
 
-            emit ERC1155ListingAdd(
-                listingId,
+            emit ERC1155AuctionAdd(
+                auctionId,
                 seller,
                 _erc1155TokenAddress,
                 _erc1155TypeId,
@@ -198,35 +206,33 @@ contract AuctionFacet is Modifiers {
                 block.timestamp
             );
         } else {
-            ERC1155Listing storage listing = s.erc1155Listings[listingId];
-            listing.quantity = _quantity;
-            emit LibERC1155Marketplace.UpdateERC1155Listing(
-                listingId,
+            ERC1155Auction storage auction = s.erc1155Auctions[auctionId];
+            auction.quantity = _quantity;
+            emit UpdateERC1155Auction(
+                auctionId,
                 _quantity,
-                listing.priceInWei,
+                auction.priceInWei,
                 block.timestamp
             );
         }
     }
 
-    function cancelERC1155Auction(uint256 _listingId) internal {
-        ERC1155Listing storage listing = s.erc1155Listings[_listingId];
-        require(listing.listingId != 0, "ERC1155Auction: Invalid listingId");
+    function cancelERC1155Auction(uint256 _auctionId) internal {
+        ERC1155Auction storage auction = s.erc1155Auctions[_auctionId];
+        require(auction.auctionId != 0, "ERC1155Auction: Invalid auctionId");
         require(
-            listing.seller == LibMeta.msgSender(),
+            auction.seller == LibMeta.msgSender(),
             "ERC1155Auction: Not seller"
         );
         require(
-            listing.timeLastPurchased == 0,
+            auction.timeLastPurchased == 0,
             "ERC1155Auction: Already purchased"
         );
         require(
-            listing.cancelled == false,
+            auction.cancelled == false,
             "ERC1155Auction: Already cancelled"
         );
 
-        listing.cancelled = true;
+        auction.cancelled = true;
     }
-
-
 }
