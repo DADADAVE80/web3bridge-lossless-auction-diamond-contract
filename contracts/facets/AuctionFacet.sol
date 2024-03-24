@@ -131,6 +131,15 @@ contract AuctionFacet is Modifiers {
 
         auction.timePurchased = block.timestamp;
 
+        if (auction.highestBidder != address(0)) {
+            // Refund the previous highest bidder
+            aucToken.transfer(auction.highestBidder, auction.highestBid * 1.03);
+        }
+
+        aucToken.transferFrom(LibMeta.msgSender(), address(this), amount);
+        auction.highestBid = amount;
+        auction.highestBidder = LibMeta.msgSender();
+
         emit ERC721AuctionBid(_auctionId, buyer, _bidAmount, block.timestamp);
     }
 
@@ -162,7 +171,20 @@ contract AuctionFacet is Modifiers {
         require(auction.timePurchased == 0, "ERC721Auction: Already purchased");
         require(auction.cancelled == false, "ERC721Auction: Already cancelled");
 
+        auction.cancelled = true;
+
+        // Transfer the token to the highest bidder
+        IERC721(auction.seller).transferFrom(address(this), auction.highestBidder, tokenId);
+
+        // Distribute fees
+        uint256 totalFee = auction.highestBid * 0.1;
+        aucToken.burn(totalFee * 0.02);
+        aucToken.transfer(randomDAOAddress, totalFee * 0.02);
+        aucToken.transfer(teamWallet, totalFee * 0.02);
+        aucToken.transfer(lastInteractedAddress, totalFee * 0.01);
+
         auction.timePurchased = block.timestamp;
+
     }
 
     // ERC1155
