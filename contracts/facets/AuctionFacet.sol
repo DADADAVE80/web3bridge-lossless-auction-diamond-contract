@@ -6,6 +6,7 @@ import {IERC1155} from "../interfaces/IERC1155.sol";
 import {LibMeta} from "../libraries/LibMeta.sol";
 import {Modifiers, ERC721Auction, ERC1155Auction} from "../libraries/LibAppStorage.sol";
 import {LibERC1155Marketplace} from "../libraries/LibERC1155Marketplace.sol";
+import {AUC20Facet} from "./AUC20Facet.sol";
 
 contract AuctionFacet is Modifiers {
     // Events
@@ -36,6 +37,8 @@ contract AuctionFacet is Modifiers {
         uint256 priceInWei,
         uint256 time
     );
+
+    AUC20Facet aucToken;
 
     // ERC721
     function createERC721Auction(
@@ -72,16 +75,7 @@ contract AuctionFacet is Modifiers {
             _erc721TokenId
         ][msgSender];
         if (oldAuctionId != 0) {
-            s.erc721Auctions[oldAuctionId] = ERC721Auction({
-                auctionId: 0,
-                seller: address(0),
-                erc721TokenAddress: address(0),
-                erc721TokenId: 0,
-                priceInWei: 0,
-                timeCreated: 0,
-                timePurchased: 0,
-                cancelled: true
-            });
+            s.erc721Auctions[oldAuctionId] = ERC721Auction({cancelled: true});
         }
 
         s.erc721Auctions[auctionId] = ERC721Auction({
@@ -91,7 +85,6 @@ contract AuctionFacet is Modifiers {
             erc721TokenId: _erc721TokenId,
             priceInWei: _priceInWei,
             timeCreated: block.timestamp,
-            timePurchased: 0,
             cancelled: false
         });
 
@@ -118,10 +111,28 @@ contract AuctionFacet is Modifiers {
         auction.cancelled = true;
     }
 
-    function bidERC721Auction(
-        uint256 _auctionId,
-        uint256 _bidAmount
-    ) internal {}
+    function bidERC721Auction(uint256 _auctionId, uint256 _bidAmount) internal {
+        ERC721Auction storage auction = s.erc721Auctions[_auctionId];
+        require(auction.auctionId != 0, "ERC721Auction: Invalid auctionId");
+        require(auction.timePurchased == 0, "ERC721Auction: Already purchased");
+        require(auction.cancelled == false, "ERC721Auction: Already cancelled");
+        require(
+            auction.priceInWei <= _bidAmount,
+            "ERC721Auction: Bid amount should be higher than price"
+        );
+
+        address buyer = LibMeta.msgSender();
+        IERC721 erc721Token = IERC721(auction.erc721TokenAddress);
+        erc721Token.safeTransferFrom(
+            auction.seller,
+            buyer,
+            auction.erc721TokenId
+        );
+
+        auction.timePurchased = block.timestamp;
+
+        emit ERC721AuctionBid(_auctionId, buyer, _bidAmount, block.timestamp);
+    }
 
     function getERC721Auction(
         uint256 _auctionId
@@ -143,6 +154,15 @@ contract AuctionFacet is Modifiers {
                 auctions[i] = auction;
             }
         }
+    }
+
+    function endERC721Auction(uint256 _auctionId) internal {
+        ERC721Auction storage auction = s.erc721Auctions[_auctionId];
+        require(auction.auctionId != 0, "ERC721Auction: Invalid auctionId");
+        require(auction.timePurchased == 0, "ERC721Auction: Already purchased");
+        require(auction.cancelled == false, "ERC721Auction: Already cancelled");
+
+        auction.timePurchased = block.timestamp;
     }
 
     // ERC1155

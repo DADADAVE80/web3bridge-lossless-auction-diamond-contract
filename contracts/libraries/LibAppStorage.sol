@@ -2,6 +2,7 @@
 pragma solidity 0.8.23;
 
 import {LibDiamond} from "./LibDiamond.sol";
+import {AUC20Facet} from "../facets/AUC20Facet.sol";
 
 struct AuctionListItem {
     uint256 parentAuctionId;
@@ -17,6 +18,8 @@ struct ERC721Auction {
     uint256 priceInWei;
     uint256 timeCreated;
     uint256 timePurchased;
+    uint256 highestBid;
+    address highestBidder;
     bool cancelled;
 }
 
@@ -43,7 +46,6 @@ struct AppStorage {
     uint256 nextERC1155AuctionId;
     mapping(address => mapping(uint256 => mapping(address => uint256))) erc1155TokenToAuctionId;
     mapping(uint256 => ERC1155Auction) erc1155Auctions;
-
     // ERC20 Facet
     string name;
     string symbol;
@@ -51,7 +53,6 @@ struct AppStorage {
     uint256 totalSupply;
     mapping(address => uint256) balances;
     mapping(address => mapping(address => uint256)) allowances;
-
 }
 
 library LibAppStorage {
